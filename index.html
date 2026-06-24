@@ -2,13 +2,12 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>ERP 엑셀 연동 및 커스텀 재고 관리 시스템</title>
-    <!-- 엑셀 파일을 읽고 쓸 수 있게 해주는 도구(SheetJS) -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <title>ERP 연동 스마트 재고 관리 및 발주서 생성 시스템</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; color: #333; }
-        .container { max-width: 950px; margin: 0 auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        .container { max-width: 1250px; margin: 0 auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
         .section { margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 25px; }
         
         .top-grids { display: flex; gap: 20px; margin-bottom: 10px; }
@@ -16,16 +15,19 @@
         .add-zone { flex: 1; background-color: #f0f4f8; padding: 15px; border: 1px solid #cfd8dc; border-radius: 6px; }
         
         .add-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        .add-form input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-        .add-form .full-width { grid-column: span 2; }
+        .add-form input, .add-form select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
         
-        /* 필터 및 다운로드 구역 */
-        .filter-zone { background-color: #fff3e0; padding: 12px; border: 1px solid #ffb74d; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        .filter-zone { background-color: #fff3e0; padding: 15px; border: 1px solid #ffb74d; border-radius: 6px; margin-bottom: 15px; display: flex; flex-direction: column; align-items: center; gap: 12px; justify-content: center; }
+        .filter-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        
         .filter-btn { padding: 6px 14px; border: 2px solid #ff9800; background-color: white; color: #ff9800; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: all 0.2s; }
         .filter-btn.active { background-color: #ff9800; color: white; }
         
-        /* 표 스타일 */
-        table { width: auto; margin: 15px auto 0 auto; border-collapse: collapse; font-size: 14px; }
+        .unit-zone { background-color: #f5f5f5; padding: 6px 12px; border-radius: 15px; border: 1px solid #e0e0e0; display: flex; align-items: center; gap: 8px; }
+        .unit-btn { padding: 4px 10px; border: 1px solid #9e9e9e; background-color: white; color: #616161; border-radius: 12px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .unit-btn.active { background-color: #616161; color: white; border-color: #616161; }
+        
+        table { width: 100%; margin: 15px auto 0 auto; border-collapse: collapse; font-size: 14px; }
         th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; white-space: nowrap; }
         th { background-color: #f2f2f2; font-weight: bold; text-align: center; }
         
@@ -38,15 +40,24 @@
         .btn-in { background-color: #4CAF50; color: white; }
         .btn-out { background-color: #f44336; color: white; }
         .btn-del { background-color: #bbb; color: white; }
-        .btn-download { background-color: #2E7D32; color: white; border: 2px solid #2E7D32; border-radius: 20px; padding: 6px 14px; font-size: 13px; }
+        .btn-download { background-color: #1B5E20; color: white; border: 2px solid #1B5E20; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: bold; }
+        .btn-reset { background-color: #e53935; color: white; border: 2px solid #e53935; border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: bold; cursor: pointer; }
         
-        .qty-input, .safety-input { width: 50px; padding: 3px; text-align: center; font-size: 13px; }
+        .qty-editable-input { width: 70px; padding: 4px; text-align: center; font-size: 13px; font-weight: bold; border: 2px solid #7B1FA2; border-radius: 4px; background-color: #fbf0ff; }
+        .plt-size-input { width: 65px; padding: 4px; text-align: center; font-size: 13px; font-weight: bold; border: 2px solid #008CBA; border-radius: 4px; background-color: #f0f9ff; }
+        .safety-input, .qty-input { width: 55px; padding: 3px; text-align: center; font-size: 13px; }
+        
+        .badge { padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white; cursor: pointer; display: inline-block; user-select: none; }
+        .badge-ea { background-color: #0288D1; }
+        .badge-plt { background-color: #7B1FA2; }
+        .unit-td { cursor: pointer; background-color: #fffdec; text-align: center; }
+        .unit-td:hover { background-color: #fff9c4; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1 style="text-align: center; margin-bottom: 25px;">📊 ERP 연동 스마트 재고 부족 알림 시스템</h1>
+    <h1 style="text-align: center; margin-bottom: 25px;">📊 ERP 연동 발주 관리 및 인보이스(정식 양식) 출력 시스템</h1>
     
     <div class="section top-grids">
         <div class="excel-zone">
@@ -60,21 +71,36 @@
             <div class="add-form">
                 <input type="text" id="new-code" placeholder="코드 (예: O196625)">
                 <input type="text" id="new-name" placeholder="품명 (예: OP9662R)">
-                <input type="text" id="new-spec" placeholder="규격 (예: PCI S/A)">
-                <input type="text" id="new-unit" placeholder="단위 (예: EA)" value="EA">
-                <input type="number" id="new-stock" placeholder="현재 재고량 (숫자)" value="0">
-                <input type="number" id="new-safety" placeholder="안전재고 기준 (숫자)" value="0">
+                <input type="text" id="new-spec" placeholder="규격 (예: PCI S/A)" value="-">
+                <select id="new-unit">
+                    <option value="EA">EA (개)</option>
+                    <option value="PLT">PLT (파렛트)</option>
+                </select>
+                <input type="number" id="new-stock" placeholder="현재 수량(EA기준)" value="0">
+                <input type="number" id="new-safety" placeholder="안전재고(EA기준)" value="600">
+                <input type="number" id="new-plt-size" placeholder="1PLT당 수량(EA) 기본값:100" value="100">
                 <button class="btn btn-add" onclick="addProduct()">➕ 리스트에 상품 추가하기</button>
             </div>
         </div>
     </div>
 
-    <!-- 보기 모드 선택 및 엑셀 다운로드 버튼 -->
     <div class="filter-zone">
-        <strong>👁️ 보기 모드 선택 :</strong>
-        <button id="btn-filter-all" class="filter-btn active" onclick="setFilterMode('ALL')">📋 전체 아이템 보기</button>
-        <button id="btn-filter-short" class="filter-btn" onclick="setFilterMode('SHORT')">🚨 재고 부족 아이템만 보기</button>
-        <button class="btn btn-download" onclick="downloadFilteredExcel()">🟢 현재 화면 엑셀로 다운로드</button>
+        <div class="filter-row">
+            <strong>👁️ 보기 모드 선택 :</strong>
+            <button id="btn-filter-all" class="filter-btn active" onclick="setFilterMode('ALL')">📋 전체 아이템 보기</button>
+            <button id="btn-filter-short" class="filter-btn" onclick="setFilterMode('SHORT')">🚨 재고 부족 아이템만 보기</button>
+            <button class="btn btn-download" onclick="downloadInvoiceExcel()">📄 정식 인보이스 양식 다운로드</button>
+            <button class="btn-reset" onclick="resetContainerQuantities()">🔄 콘테이너 수량 초기화</button>
+        </div>
+        
+        <div class="filter-row" id="unit-filter-container" style="display: none;">
+            <div class="unit-zone">
+                <strong>📦 단위 구분 :</strong>
+                <button id="btn-unit-all" class="unit-btn active" onclick="setUnitFilter('ALL')">전체 보기</button>
+                <button id="btn-unit-ea" class="unit-btn" onclick="setUnitFilter('EA')">EA 품목만</button>
+                <button id="btn-unit-plt" class="unit-btn" onclick="setUnitFilter('PLT')">PLT 품목만</button>
+            </div>
+        </div>
     </div>
 
     <div class="section" style="overflow-x: auto;">
@@ -85,17 +111,19 @@
                     <th>코드</th>
                     <th>품명</th>
                     <th>규격</th>
-                    <th>단위</th>
-                    <th>현재 재고량</th>
-                    <th>안전 재고 설정</th>
+                    <th style="width: 80px;">단위 (클릭)</th>
+                    <th>1 PLT당 수량 (EA)</th>
+                    <th>현재고 (EA)</th>
+                    <th>발주 수량 (PLT)</th>
+                    <th>안전 재고 (EA)</th>
                     <th>상태</th>
-                    <th>수량 조정</th>
+                    <th>수량 조정(EA)</th>
                     <th>삭제</th>
                 </tr>
             </thead>
             <tbody id="product-list-body">
                 <tr>
-                    <td colspan="9" style="text-align: center; color: #999; padding: 20px;">데이터가 없습니다. 엑셀을 업로드해 주세요.</td>
+                    <td colspan="11" style="text-align: center; color: #999; padding: 20px;">데이터가 없습니다. 엑셀을 업로드해 주세요.</td>
                 </tr>
             </tbody>
         </table>
@@ -105,6 +133,7 @@
 <script>
     let products = JSON.parse(localStorage.getItem('myExcelProducts')) || [];
     let currentFilterMode = 'ALL'; 
+    let currentUnitFilter = 'ALL'; 
 
     if (products.length > 0) {
         updateUI();
@@ -123,94 +152,248 @@
             const excelRows = XLSX.utils.sheet_to_json(worksheet);
 
             let mappedProducts = excelRows.map((row, index) => {
+                let rawUnit = String(row['단위'] || 'EA').trim().toUpperCase();
+                if(rawUnit.includes('BOX') || rawUnit.includes('박스') || rawUnit.includes('PLT') || rawUnit.includes('파렛트')) rawUnit = 'PLT';
+                else if(rawUnit.includes('EA') || rawUnit.includes('개')) rawUnit = 'EA';
+
+                let stockVal = parseInt(row['재고량'] || row['현재고'] || row['재고'] || 0);
+                let safetyVal = parseInt(row['안전재고'] || row['안전재고량'] || 600);
+                let pltSizeVal = parseInt(row['파렛트당수량'] || row['PLT수량'] || row['박스당수량'] || 100);
+
+                let shortage = safetyVal - stockVal;
+                let defaultPltNeeded = shortage > 0 ? Math.round(shortage / pltSizeVal) : 0;
+
                 return {
                     id: Date.now() + index,
                     code: row['고 유 코 드'] || row['코 드'] || row['코드'] || '-', 
                     name: row['품 명'] || row['품명'] || '이름 없음', 
-                    spec: row['규 격'] || row['규격'] || '-',       
-                    unit: row['단위'] || 'EA',      
-                    stock: parseInt(row['재고량'] || row['현재고'] || row['재고'] || 0), 
-                    safety: parseInt(row['안전재고'] || row['안전재고량'] || 0) 
+                    spec: String(row['규 격'] || row['규격'] || '-'),       
+                    unit: rawUnit,      
+                    stock: stockVal,     
+                    safety: safetyVal,   
+                    pltSize: pltSizeVal, 
+                    customPltQty: defaultPltNeeded   
                 };
             });
 
             products = mappedProducts.filter(p => p.name !== '총계' && p.name !== '이름 없음');
             saveAndRefresh();
-            alert(`총 ${products.length}개의 품목을 성공적으로 동기화했습니다!`);
+            alert(`총 ${products.length}개의 품목을 성공적으로 불러왔습니다!`);
         };
         reader.readAsArrayBuffer(file);
     }
 
-    // 🌟 오타 및 기능 정상 작동하도록 수정 완료!
+    function updatePltSize(id, value) {
+        const product = products.find(p => p.id === id);
+        if (product) {
+            let newSize = parseInt(value) || 1;
+            product.pltSize = newSize;
+            let shortage = product.safety - product.stock;
+            product.customPltQty = shortage > 0 ? Math.round(shortage / newSize) : 0;
+            saveAndRefresh();
+        }
+    }
+
+    function resetContainerQuantities() {
+        if (products.length === 0) return alert("초기화할 데이터가 없습니다.");
+        if (confirm("작성 중이던 콘테이너 발주 수량(PLT)을 모두 처음 추천 값으로 되돌리시겠습니까?")) {
+            products.forEach(p => {
+                let shortage = p.safety - p.stock;
+                p.customPltQty = shortage > 0 ? Math.round(shortage / p.pltSize) : 0;
+            });
+            saveAndRefresh();
+            alert("모든 발주 수량이 초기화되었습니다.");
+        }
+    }
+
+    function toggleUnit(id) {
+        const product = products.find(p => p.id === id);
+        if (product) {
+            product.unit = product.unit === 'EA' ? 'PLT' : 'EA';
+            if (product.unit === 'PLT' && (product.customPltQty === null || product.customPltQty === 0)) {
+                let shortage = product.safety - product.stock;
+                product.customPltQty = shortage > 0 ? Math.round(shortage / product.pltSize) : 0;
+            }
+            saveAndRefresh();
+        }
+    }
+
+    function updateCustomPltQty(id, value) {
+        const product = products.find(p => p.id === id);
+        if (product) {
+            product.customPltQty = Math.round(parseFloat(value)) || 0;
+            localStorage.setItem('myExcelProducts', JSON.stringify(products));
+        }
+    }
+
     function setFilterMode(mode) {
         currentFilterMode = mode;
         document.getElementById('btn-filter-all').classList.remove('active');
         document.getElementById('btn-filter-short').classList.remove('active');
+        const unitContainer = document.getElementById('unit-filter-container');
         
         if(mode === 'ALL') {
             document.getElementById('btn-filter-all').classList.add('active');
-            document.getElementById('table-title').innerText = "📦 전체 재고 현황 목록";
+            document.getElementById('table-title').innerText = "📦 현재 재고 현황 목록";
+            unitContainer.style.display = "none"; 
         } else {
             document.getElementById('btn-filter-short').classList.add('active');
             document.getElementById('table-title').innerText = "🚨 발주가 시급한 재고 부족 목록";
+            unitContainer.style.display = "flex"; 
         }
+        setUnitFilter('ALL');
+    }
+
+    function setUnitFilter(unitMode) {
+        currentUnitFilter = unitMode;
+        document.getElementById('btn-unit-all').classList.remove('active');
+        document.getElementById('btn-unit-ea').classList.remove('active');
+        document.getElementById('btn-unit-plt').classList.remove('active');
+        
+        if(unitMode === 'ALL') document.getElementById('btn-unit-all').classList.add('active');
+        if(unitMode === 'EA') document.getElementById('btn-unit-ea').classList.add('active');
+        if(unitMode === 'PLT') document.getElementById('btn-unit-plt').classList.add('active');
+        
         updateUI();
     }
 
-    function downloadFilteredExcel() {
-        let displayProducts = products;
-        let fileName = "전체_재고_현황.xlsx";
-
-        if (currentFilterMode === 'SHORT') {
-            displayProducts = products.filter(p => p.stock < p.safety);
-            fileName = "🚨발주필요_재고부족_리스트.xlsx";
-        }
+    // 🌟 [수정된 기능] 인보이스 다운로드 시 단위 설정 무관하게 무조건 EA(총 낱개 수량)로 계산되어 출력됨
+    function downloadInvoiceExcel() {
+        let displayProducts = products.filter(p => {
+            if (currentFilterMode === 'SHORT' && p.stock >= p.safety) return false;
+            if (currentFilterMode === 'SHORT' && currentUnitFilter !== 'ALL' && p.unit !== currentUnitFilter) return false;
+            return true;
+        });
 
         if (displayProducts.length === 0) {
             alert("다운로드할 데이터가 없습니다.");
             return;
         }
 
-        const excelData = displayProducts.map(p => ({
-            '코드': p.code,
-            '품명': p.name,
-            '규격': p.spec,
-            '단위': p.unit,
-            '현재 재고량': p.stock,
-            '안전재고 설정': p.safety,
-            '부족 수량': p.safety - p.stock > 0 ? p.safety - p.stock : 0
-        }));
+        const rows = [];
+        
+        const fontNormal = { name: 'Times New Roman', sz: 10 };
+        const fontBold = { name: 'Times New Roman', sz: 10, bold: true };
+        const borderThin = {
+            top: { style: 'thin', color: { rgb: '000000' } },
+            bottom: { style: 'thin', color: { rgb: '000000' } },
+            left: { style: 'thin', color: { rgb: '000000' } },
+            right: { style: 'thin', color: { rgb: '000000' } }
+        };
+        const borderHeader = {
+            top: { style: 'medium', color: { rgb: '000000' } },
+            bottom: { style: 'medium', color: { rgb: '000000' } },
+            left: { style: 'thin', color: { rgb: '000000' } },
+            right: { style: 'thin', color: { rgb: '000000' } }
+        };
 
-        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        rows.push([
+            { v: 'Price Term: CNF INCHON', s: { font: { name: 'Times New Roman', sz: 10, bold: true, underline: true }, alignment: { horizontal: 'left' } } },
+            {v:''},{v:''},{v:''},{v:''},{v:''},{v:''}
+        ]);
+        
+        rows.push([
+            { v: 'THE BUYER AGREES TO BUY AND SELLER AGREES TO SELL THE FOLLOWING GOODS ON TERMS AND CONDITIONS AS SET FORTH BELOW:', s: { font: { name: 'Times New Roman', sz: 8, bold: true, underline: true } } },
+            {v:''},{v:''},{v:''},{v:''},{v:''},{v:''}
+        ]);
+
+        const headerCols = ['No.', 'Name of commodity and specification', "Q'ty", 'U/price', 'T/amount', 'U.W(KG)', 'N.W(KG)'];
+        rows.push(headerCols.map(h => ({
+            v: h,
+            s: { font: fontBold, alignment: { horizontal: 'center', vertical: 'center' }, border: borderHeader }
+        })));
+
+        let serialNo = 1;
+        displayProducts.forEach(p => {
+            // 🌟 핵심 교정: 화면에서 단위를 PLT로 관리하고 있었더라도, 
+            // 엑셀 인보이스 창에는 [작성한 파렛트 수 x 1PLT당 EA수량]을 곱해서 '총 낱개 수량'이 들어가도록 변경
+            let finalEaQty = 0;
+            if (p.unit === 'PLT') {
+                finalEaQty = (p.customPltQty || 0) * (p.pltSize || 100);
+            } else {
+                let shortage = p.safety - p.stock;
+                finalEaQty = shortage > 0 ? shortage : 0;
+            }
+
+            rows.push([
+                { v: serialNo++, s: { font: fontNormal, alignment: { horizontal: 'center' }, border: borderThin } },
+                { v: `${p.name} ${p.spec}`, s: { font: fontBold, alignment: { horizontal: 'left' }, border: borderThin } },
+                { v: finalEaQty, s: { font: fontBold, fill: { fgColor: { rgb: 'FFFDE7' } }, alignment: { horizontal: 'center' }, border: borderThin, numFmt: '#,##0' } }, // 낱개 수량 대입
+                { v: '', s: { font: fontNormal, border: borderThin } },
+                { v: '', s: { font: fontNormal, border: borderThin } },
+                { v: '', s: { font: fontNormal, border: borderThin } },
+                { v: '', s: { font: fontNormal, border: borderThin } }
+            ]);
+        });
+
+        for(let i=0; i<3; i++) {
+            rows.push([
+                { v: serialNo++, s: { font: fontNormal, alignment: { horizontal: 'center' }, border: borderThin } },
+                { v: '', s: { border: borderThin } }, { v: '', s: { border: borderThin } }, { v: '', s: { border: borderThin } },
+                { v: '', s: { border: borderThin } }, { v: '', s: { border: borderThin } }, { v: '', s: { border: borderThin } }
+            ]);
+        }
+
+        rows.push([
+            { v: serialNo++, s: { font: fontNormal, alignment: { horizontal: 'center' }, border: borderThin } },
+            { v: 'Sea freight', s: { font: fontNormal, alignment: { horizontal: 'left' }, border: borderThin } },
+            { v: 1, s: { font: fontNormal, alignment: { horizontal: 'center' }, border: borderThin } },
+            { v: '', s: { border: borderThin } }, { v: '', s: { border: borderThin } }, { v: '', s: { border: borderThin } },
+            { v: '', s: { border: borderThin } }
+        ]);
+
+        rows.push([
+            { v: 'Sub - total', s: { font: fontBold, alignment: { horizontal: 'left' }, border: { top: {style:'thin'}, bottom: {style:'double'}, left: {style:'thin'}, right: {style:'thin'} } } },
+            { v: '', s: { border: { top: {style:'thin'}, bottom: {style:'double'}, left: {style:'thin'}, right: {style:'thin'} } } },
+            { v: '', s: { border: { top: {style:'thin'}, bottom: {style:'double'}, left: {style:'thin'}, right: {style:'thin'} } } },
+            { v: '', s: { border: { top: {style:'thin'}, bottom: {style:'double'}, left: {style:'thin'}, right: {style:'thin'} } } },
+            { v: '', s: { border: { top: {style:'thin'}, bottom: {style:'double'}, left: {style:'thin'}, right: {style:'thin'} } } },
+            { v: '', s: { border: { top: {style:'thin'}, bottom: {style:'double'}, left: {style:'thin'}, right: {style:'thin'} } } },
+            { v: '', s: { border: { top: {style:'thin'}, bottom: {style:'double'}, left: {style:'thin'}, right: {style:'thin'} } } }
+        ]);
+
+        const worksheet = XLSX.utils.aoa_to_sheet(rows);
+        worksheet['!cols'] = [
+            { wch: 6 },  
+            { wch: 45 }, 
+            { wch: 12 }, 
+            { wch: 12 }, 
+            { wch: 14 }, 
+            { wch: 12 }, 
+            { wch: 12 }  
+        ];
+
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "재고현황");
-        XLSX.writeFile(workbook, fileName);
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice");
+        XLSX.writeFile(workbook, `Invoice_발주서.xlsx`);
     }
 
     function addProduct() {
         const code = document.getElementById('new-code').value.trim() || '-';
         const name = document.getElementById('new-name').value.trim();
         const spec = document.getElementById('new-spec').value.trim() || '-';
-        const unit = document.getElementById('new-unit').value.trim() || 'EA';
-        const stock = parseInt(document.getElementById('new-stock').value) || 0;
-        const safety = parseInt(document.getElementById('new-safety').value) || 0;
+        const unit = document.getElementById('new-unit').value;
+        let stock = parseInt(document.getElementById('new-stock').value) || 0;
+        let safety = parseInt(document.getElementById('new-safety').value) || 600;
+        let pltSize = parseInt(document.getElementById('new-plt-size').value) || 100;
 
         if (!name) { return alert("품명은 필수입니다."); }
 
-        products.push({ id: Date.now(), code, name, spec, unit, stock, safety });
+        let shortage = safety - stock;
+        let defaultPltNeeded = shortage > 0 ? Math.round(shortage / pltSize) : 0;
+
+        products.push({ id: Date.now(), code, name, spec, unit, stock, safety, pltSize, customPltQty: defaultPltNeeded });
         saveAndRefresh();
 
         document.getElementById('new-code').value = '';
         document.getElementById('new-name').value = '';
-        document.getElementById('new-spec').value = '';
     }
 
-    function updateSafety(id, newSafetyValue) {
+    function updateSafety(id, displayValue) {
         const product = products.find(p => p.id === id);
         if (product) {
-            product.safety = parseInt(newSafetyValue) || 0;
-            localStorage.setItem('myExcelProducts', JSON.stringify(products));
-            updateUI(); 
+            product.safety = Math.round(parseFloat(displayValue) || 0);
+            saveAndRefresh();
         }
     }
 
@@ -223,6 +406,10 @@
         if (product) {
             if (type === 'IN') product.stock += amount;
             if (type === 'OUT') product.stock -= amount;
+            
+            let shortage = product.safety - product.stock;
+            product.customPltQty = shortage > 0 ? Math.round(shortage / product.pltSize) : 0;
+            
             saveAndRefresh();
         }
     }
@@ -243,14 +430,15 @@
         const tbody = document.getElementById('product-list-body');
         tbody.innerHTML = '';
 
-        let displayProducts = products;
-        if (currentFilterMode === 'SHORT') {
-            displayProducts = products.filter(p => p.stock < p.safety);
-        }
+        let displayProducts = products.filter(p => {
+            if (currentFilterMode === 'SHORT' && p.stock >= p.safety) return false;
+            if (currentFilterMode === 'SHORT' && currentUnitFilter !== 'ALL' && p.unit !== currentUnitFilter) return false;
+            return true;
+        });
 
         if (displayProducts.length === 0) {
-            let msg = currentFilterMode === 'SHORT' ? "🎉 와우! 현재 재고가 부족한 품목이 없습니다." : "데이터가 없습니다.";
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #999; padding: 20px;">${msg}</td></tr>`;
+            let msg = currentFilterMode === 'SHORT' ? "🎉 부족 품목이 없습니다." : "데이터가 없습니다. 엑셀을 업로드해 주세요.";
+            tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: #999; padding: 20px;">${msg}</td></tr>`;
             return;
         }
 
@@ -258,14 +446,36 @@
             const isShortage = product.stock < product.safety;
             const rowClass = isShortage ? 'class="alert-row"' : '';
             const statusText = isShortage ? '⚠️ 발주필요' : '정상';
+            
+            const isPltMode = product.unit === 'PLT';
+            const unitClass = isPltMode ? 'badge badge-plt' : 'badge badge-ea';
+
+            let pltColumnHtml = '';
+            if (isPltMode) {
+                if (product.customPltQty === null) {
+                    let shortage = product.safety - product.stock;
+                    product.customPltQty = shortage > 0 ? Math.round(shortage / product.pltSize) : 0;
+                }
+                pltColumnHtml = `<input type="number" step="1" class="qty-editable-input" value="${product.customPltQty}" onchange="updateCustomPltQty(${product.id}, this.value)"> PLT`;
+            } else {
+                let shortage = product.safety - product.stock;
+                let recPlt = shortage > 0 ? Math.round(shortage / product.pltSize) : 0;
+                pltColumnHtml = `<span style="color:#777;">${recPlt} PLT (추천)</span>`;
+            }
 
             tbody.innerHTML += `
                 <tr ${rowClass}>
                     <td class="text-center">${product.code}</td>
                     <td><strong>${product.name}</strong></td>
-                    <td>${product.spec}</td>
-                    <td class="text-center">${product.unit}</td>
-                    <td class="text-right">${product.stock.toLocaleString()} ${product.unit}</td>
+                    <td class="text-center">${product.spec}</td>
+                    <td class="unit-td" onclick="toggleUnit(${product.id})" title="클릭하면 단위 전환">
+                        <span class="${unitClass}">${product.unit}</span>
+                    </td>
+                    <td class="text-center">
+                        <input type="number" class="plt-size-input" value="${product.pltSize || 100}" onchange="updatePltSize(${product.id}, this.value)">
+                    </td>
+                    <td class="text-right" style="background-color: #fafafa;"><strong>${product.stock.toLocaleString()}</strong> EA</td>
+                    <td class="text-center" style="background-color: #fdf8ff;">${pltColumnHtml}</td>
                     <td class="text-center">
                         <input type="number" class="safety-input" value="${product.safety}" onchange="updateSafety(${product.id}, this.value)">
                     </td>
