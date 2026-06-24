@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <title>ERP 엑셀 연동 및 커스텀 재고 관리 시스템</title>
+    <!-- 엑셀 파일을 읽고 쓸 수 있게 해주는 도구(SheetJS) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; color: #333; }
-        
-        /* 전체 화면 폭을 조절 */
         .container { max-width: 950px; margin: 0 auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
         .section { margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 25px; }
         
-        /* 상단 기능 구역 구성을 반반으로 정렬 */
         .top-grids { display: flex; gap: 20px; margin-bottom: 10px; }
         .excel-zone { flex: 1; background-color: #e8f4fd; padding: 15px; border: 2px dashed #2196F3; border-radius: 6px; text-align: center; }
         .add-zone { flex: 1; background-color: #f0f4f8; padding: 15px; border: 1px solid #cfd8dc; border-radius: 6px; }
@@ -21,21 +19,14 @@
         .add-form input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
         .add-form .full-width { grid-column: span 2; }
         
-        /* 표 스타일: 콤팩트하고 아담한 스타일 유지 */
-        table { 
-            width: auto;            
-            margin: 15px auto 0 auto; 
-            border-collapse: collapse; 
-            font-size: 14px;        
-        }
+        /* 필터 및 다운로드 구역 */
+        .filter-zone { background-color: #fff3e0; padding: 12px; border: 1px solid #ffb74d; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        .filter-btn { padding: 6px 14px; border: 2px solid #ff9800; background-color: white; color: #ff9800; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: all 0.2s; }
+        .filter-btn.active { background-color: #ff9800; color: white; }
         
-        th, td { 
-            border: 1px solid #ddd; 
-            padding: 8px 12px;      
-            text-align: left; 
-            white-space: nowrap;    
-        }
-        
+        /* 표 스타일 */
+        table { width: auto; margin: 15px auto 0 auto; border-collapse: collapse; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; white-space: nowrap; }
         th { background-color: #f2f2f2; font-weight: bold; text-align: center; }
         
         .text-center { text-align: center; }
@@ -47,15 +38,15 @@
         .btn-in { background-color: #4CAF50; color: white; }
         .btn-out { background-color: #f44336; color: white; }
         .btn-del { background-color: #bbb; color: white; }
+        .btn-download { background-color: #2E7D32; color: white; border: 2px solid #2E7D32; border-radius: 20px; padding: 6px 14px; font-size: 13px; }
         
-        .qty-input { width: 40px; padding: 3px; text-align: center; font-size: 13px; }
-        .safety-input { width: 50px; padding: 3px; text-align: center; font-size: 13px; }
+        .qty-input, .safety-input { width: 50px; padding: 3px; text-align: center; font-size: 13px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1 style="text-align: center; margin-bottom: 25px;">📊 ERP 엑셀 연동 및 수동 재고 관리 시스템</h1>
+    <h1 style="text-align: center; margin-bottom: 25px;">📊 ERP 연동 스마트 재고 부족 알림 시스템</h1>
     
     <div class="section top-grids">
         <div class="excel-zone">
@@ -78,8 +69,16 @@
         </div>
     </div>
 
+    <!-- 보기 모드 선택 및 엑셀 다운로드 버튼 -->
+    <div class="filter-zone">
+        <strong>👁️ 보기 모드 선택 :</strong>
+        <button id="btn-filter-all" class="filter-btn active" onclick="setFilterMode('ALL')">📋 전체 아이템 보기</button>
+        <button id="btn-filter-short" class="filter-btn" onclick="setFilterMode('SHORT')">🚨 재고 부족 아이템만 보기</button>
+        <button class="btn btn-download" onclick="downloadFilteredExcel()">🟢 현재 화면 엑셀로 다운로드</button>
+    </div>
+
     <div class="section" style="overflow-x: auto;">
-        <h2 style="text-align: center;">📦 현재 재고 현황 목록</h2>
+        <h2 id="table-title" style="text-align: center;">📦 현재 재고 현황 목록</h2>
         <table>
             <thead>
                 <tr>
@@ -96,7 +95,7 @@
             </thead>
             <tbody id="product-list-body">
                 <tr>
-                    <td colspan="9" style="text-align: center; color: #999; padding: 20px;">데이터가 없습니다. 엑셀을 업로드하거나 신규 상품을 등록해 주세요.</td>
+                    <td colspan="9" style="text-align: center; color: #999; padding: 20px;">데이터가 없습니다. 엑셀을 업로드해 주세요.</td>
                 </tr>
             </tbody>
         </table>
@@ -104,15 +103,13 @@
 </div>
 
 <script>
-    // 브라우저 저장소에서 기존 데이터 가져오기
     let products = JSON.parse(localStorage.getItem('myExcelProducts')) || [];
+    let currentFilterMode = 'ALL'; 
 
-    // 기존 데이터가 있으면 화면에 표시
     if (products.length > 0) {
         updateUI();
     }
 
-    // 1. ERP 엑셀 파일 읽기 기능
     function readExcel(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -127,26 +124,69 @@
 
             let mappedProducts = excelRows.map((row, index) => {
                 return {
-                    id: Date.now() + index, // 고유 ID 부여
+                    id: Date.now() + index,
                     code: row['고 유 코 드'] || row['코 드'] || row['코드'] || '-', 
                     name: row['품 명'] || row['품명'] || '이름 없음', 
                     spec: row['규 격'] || row['규격'] || '-',       
                     unit: row['단위'] || 'EA',      
-                    stock: parseInt(row['재고량'] || 0), 
-                    safety: parseInt(row['안전재고'] || 0) 
+                    stock: parseInt(row['재고량'] || row['현재고'] || row['재고'] || 0), 
+                    safety: parseInt(row['안전재고'] || row['안전재고량'] || 0) 
                 };
             });
 
-            // 불필요한 총계 행 필터링
             products = mappedProducts.filter(p => p.name !== '총계' && p.name !== '이름 없음');
-
             saveAndRefresh();
-            alert(`총 ${products.length}개의 품목을 ERP 엑셀에서 성공적으로 동기화했습니다!`);
+            alert(`총 ${products.length}개의 품목을 성공적으로 동기화했습니다!`);
         };
         reader.readAsArrayBuffer(file);
     }
 
-    // 2. 화면에서 직접 신규 상품 추가 기능
+    // 🌟 오타 및 기능 정상 작동하도록 수정 완료!
+    function setFilterMode(mode) {
+        currentFilterMode = mode;
+        document.getElementById('btn-filter-all').classList.remove('active');
+        document.getElementById('btn-filter-short').classList.remove('active');
+        
+        if(mode === 'ALL') {
+            document.getElementById('btn-filter-all').classList.add('active');
+            document.getElementById('table-title').innerText = "📦 전체 재고 현황 목록";
+        } else {
+            document.getElementById('btn-filter-short').classList.add('active');
+            document.getElementById('table-title').innerText = "🚨 발주가 시급한 재고 부족 목록";
+        }
+        updateUI();
+    }
+
+    function downloadFilteredExcel() {
+        let displayProducts = products;
+        let fileName = "전체_재고_현황.xlsx";
+
+        if (currentFilterMode === 'SHORT') {
+            displayProducts = products.filter(p => p.stock < p.safety);
+            fileName = "🚨발주필요_재고부족_리스트.xlsx";
+        }
+
+        if (displayProducts.length === 0) {
+            alert("다운로드할 데이터가 없습니다.");
+            return;
+        }
+
+        const excelData = displayProducts.map(p => ({
+            '코드': p.code,
+            '품명': p.name,
+            '규격': p.spec,
+            '단위': p.unit,
+            '현재 재고량': p.stock,
+            '안전재고 설정': p.safety,
+            '부족 수량': p.safety - p.stock > 0 ? p.safety - p.stock : 0
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "재고현황");
+        XLSX.writeFile(workbook, fileName);
+    }
+
     function addProduct() {
         const code = document.getElementById('new-code').value.trim() || '-';
         const name = document.getElementById('new-name').value.trim();
@@ -155,53 +195,29 @@
         const stock = parseInt(document.getElementById('new-stock').value) || 0;
         const safety = parseInt(document.getElementById('new-safety').value) || 0;
 
-        if (!name) {
-            alert("품명은 필수 입력 사항입니다.");
-            return;
-        }
+        if (!name) { return alert("품명은 필수입니다."); }
 
-        const newProduct = {
-            id: Date.now(),
-            code: code,
-            name: name,
-            spec: spec,
-            unit: unit,
-            stock: stock,
-            safety: safety
-        };
-
-        products.push(newProduct);
+        products.push({ id: Date.now(), code, name, spec, unit, stock, safety });
         saveAndRefresh();
 
-        // 입력창 리셋 (단위는 기본값 보존)
         document.getElementById('new-code').value = '';
         document.getElementById('new-name').value = '';
         document.getElementById('new-spec').value = '';
-        document.getElementById('new-stock').value = '0';
-        document.getElementById('new-safety').value = '0';
     }
 
-    // 3. 표 안에서 안전재고를 실시간으로 직접 수정할 때 작동하는 함수
     function updateSafety(id, newSafetyValue) {
         const product = products.find(p => p.id === id);
         if (product) {
             product.safety = parseInt(newSafetyValue) || 0;
             localStorage.setItem('myExcelProducts', JSON.stringify(products));
-            
-            // 행의 색상과 상태 텍스트만 실시간으로 업데이트하기 위해 새로고침 실행
             updateUI(); 
         }
     }
 
-    // 4. 입출고 수량 변경 기능
     function changeStock(id, type) {
         const inputElement = document.getElementById(`qty-${id}`);
         const amount = parseInt(inputElement.value);
-
-        if (isNaN(amount) || amount <= 0) {
-            alert("올바른 수량을 입력해주세요.");
-            return;
-        }
+        if (isNaN(amount) || amount <= 0) return alert("올바른 수량을 입력해주세요.");
 
         const product = products.find(p => p.id === id);
         if (product) {
@@ -211,7 +227,6 @@
         }
     }
 
-    // 5. 상품 수동 삭제 기능
     function deleteProduct(id) {
         if (confirm("이 상품을 리스트에서 삭제하시겠습니까?")) {
             products = products.filter(p => p.id !== id);
@@ -224,17 +239,22 @@
         updateUI();
     }
 
-    // 6. 종합 화면 출력(UI) 함수
     function updateUI() {
         const tbody = document.getElementById('product-list-body');
         tbody.innerHTML = '';
 
-        if (products.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #999; padding: 20px;">데이터가 없습니다.</td></tr>`;
+        let displayProducts = products;
+        if (currentFilterMode === 'SHORT') {
+            displayProducts = products.filter(p => p.stock < p.safety);
+        }
+
+        if (displayProducts.length === 0) {
+            let msg = currentFilterMode === 'SHORT' ? "🎉 와우! 현재 재고가 부족한 품목이 없습니다." : "데이터가 없습니다.";
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #999; padding: 20px;">${msg}</td></tr>`;
             return;
         }
 
-        products.forEach(product => {
+        displayProducts.forEach(product => {
             const isShortage = product.stock < product.safety;
             const rowClass = isShortage ? 'class="alert-row"' : '';
             const statusText = isShortage ? '⚠️ 발주필요' : '정상';
@@ -246,11 +266,9 @@
                     <td>${product.spec}</td>
                     <td class="text-center">${product.unit}</td>
                     <td class="text-right">${product.stock.toLocaleString()} ${product.unit}</td>
-                    
                     <td class="text-center">
                         <input type="number" class="safety-input" value="${product.safety}" onchange="updateSafety(${product.id}, this.value)">
                     </td>
-                    
                     <td class="text-center">${statusText}</td>
                     <td class="text-center">
                         <input type="number" id="qty-${product.id}" class="qty-input" value="1" min="1">
